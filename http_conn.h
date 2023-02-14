@@ -22,6 +22,8 @@
 #include <string>
 #include <iostream>
 #include "locker.h"
+#include "sqlconnpool.h"
+
 using namespace std;
 
 class http_conn
@@ -90,6 +92,7 @@ public:
     static int m_epollfd;
     // 统计用户数量
     static int m_user_count;
+    MYSQL* mysql;
 
 private:
     // 读http连接的socket和对方的socket地址

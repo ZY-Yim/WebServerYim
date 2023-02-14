@@ -12,7 +12,7 @@ const char* error_500_title = "Internal Error";
 const char* error_500_form = "There was an unusual problem serving the requested file.\n";
 
 // 网站根目录
-const char* doc_root = "/home/yim/WorkSpace/WebServer/resources";
+const char* doc_root = "/home/yim/WorkSpace/WebServerYim/resources";
 
 // 将文件描述符设置为非阻塞的
 int setnonblocking( int fd )
@@ -87,6 +87,8 @@ void http_conn::init( int sockfd, const sockaddr_in& addr )
 
 void http_conn::init()
 {
+    mysql = NULL;
+    
     m_check_state = CHECK_STATE_REQUESTLINE;
     m_linger = false;
 

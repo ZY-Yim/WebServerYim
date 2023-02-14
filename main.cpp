@@ -12,6 +12,8 @@
 
 #include "locker.h"
 #include "threadpool.h"
+#include "sqlconnpool.h"
+#include "sqlconnRAII.h"
 #include "http_conn.h"
 
 #define MAX_FD 65536
@@ -53,11 +55,19 @@ int main( int argc, char* argv[] )
     int port = atoi( argv[2] );
     // 忽略SIGPIPE信号
     addsig( SIGPIPE, SIG_IGN );
+
+    // cout << "123" << endl;
+    // 创建sql数据库连接池 
+    sqlconnpool* connpool = sqlconnpool::get_instance();
+    connpool->init("localhost", "yim", "123456", "WebDB", 3306, 8);
+    // cout << "123" << endl;
+
     // 创建线程池
     threadpool< http_conn >* pool = NULL;
     try
     {
-        pool = new threadpool< http_conn >;
+        // 线程池中有一个指向数据库连接池的指针
+        pool = new threadpool< http_conn >(connpool);
     }
     catch( ... )
     {

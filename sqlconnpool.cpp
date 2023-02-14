@@ -1,3 +1,4 @@
+#include <mysql/mysql.h>
 #include "sqlconnpool.h"
 #include "locker.h"
 
@@ -31,9 +32,12 @@ void sqlconnpool::init(string url, string user, string password, string data_bas
             exit(1);
         }
         conn = mysql_real_connect(conn, m_url.c_str(), m_user.c_str(), m_password.c_str(), m_data_base_name.c_str(), port, NULL, 0);
+        // cout << "1234" << endl;
         if(conn == NULL){
+            // cout << "123" << endl;
             exit(1);
         }
+        // cout << "123" << endl;
         conn_list.push_back(conn);
         ++m_free_conn;
     }
@@ -61,6 +65,7 @@ MYSQL* sqlconnpool::get_connection(){
 
 // 释放当前连接
 bool sqlconnpool::release_connection(MYSQL* conn){
+    cout << "release" << endl << endl;
     if(conn == NULL) return false;
     lock.lock();
     conn_list.push_back(conn);

@@ -5,6 +5,8 @@
 #include <cstdio>
 #include <exception>
 #include <pthread.h>
+#include "sqlconnpool.h"
+#include "sqlconnRAII.h"
 // 线程同步机制的包装类
 #include "locker.h"
 
@@ -18,7 +20,7 @@ public:
      * thread_number 线程池中线程的数量，
      * max_requests 请求队列中最多允许的，等待的请求的数量
      */
-    threadpool( int thread_number = 8, int max_requests = 10000 );
+    threadpool(sqlconnpool* connpool, int thread_number = 9, int max_requests = 10000 );
     ~threadpool();
     // 往请求队列中添加任务
     bool append( T* request );
@@ -36,12 +38,13 @@ private:
     locker m_queuelocker;       // 保护请求队列的互斥锁
     sem m_queuestat;            // 是否有任务需要处理
     bool m_stop;                // 是否结束线程
+    sqlconnpool* m_connpool;      // 数据库连接池
 };
 
 // 构造函数
 template< typename T >
-threadpool< T >::threadpool( int thread_number, int max_requests ) : 
-        m_thread_number( thread_number ), m_max_requests( max_requests ), m_stop( false ), m_threads( NULL )
+threadpool< T >::threadpool( sqlconnpool* connpool, int thread_number, int max_requests ) : 
+        m_thread_number( thread_number ), m_max_requests( max_requests ), m_stop( false ), m_threads( NULL ), m_connpool(connpool)
 {
     if( ( thread_number <= 0 ) || ( max_requests <= 0 ) )
     {
@@ -127,7 +130,11 @@ void threadpool< T >::run()
         {
             continue;
         }
+        // 获取一条mysql连接，还需要释放，采用RAII机制
+        // sqlconnRAII mysqlconn(&request->mysql, m_connpool);
+        request->mysql = m_connpool->get_connection();
         request->process();
+        m_connpool->release_connection(request->mysql);
     }
 }
 
