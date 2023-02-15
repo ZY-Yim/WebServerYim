@@ -1,5 +1,8 @@
 #include "http_conn.h"
 
+// INSERT 操作时加锁
+locker m_lock;
+
 // 定义http响应的状态信息
 const char* ok_200_title = "OK";
 const char* error_400_title = "Bad Request";
@@ -401,17 +404,41 @@ http_conn::HTTP_CODE http_conn::do_request()
         int idx = m_string.find('&');
         string name(m_string.begin() + 5, m_string.begin() + idx);
         string password(m_string.begin() + idx + 10, m_string.end());
-        // cout << name << password << endl;
+        // cout << name << " " << password << endl;
 
         // 判断登录还是注册
-        // '2'是登录
-        if(*(p + 1) == '2'){
-            strcpy(m_url, "/welcome.html");
-        }
         // '3'是注册
         // 注册之后跳转到登录页面
+        if(*(p + 1) == '3'){
+            // 插入数据
+            // 表必须设置了主键
+            string sql_insert = "INSERT INTO user(username, password) VALUES('" + name + "', '" + password + "');";
+            cout << sql_insert << endl;
+            m_lock.lock();
+            int res = mysql_real_query(mysql, sql_insert.c_str(), sql_insert.size());
+            m_lock.unlock();
+            if(!res){
+                strcpy(m_url, "/log.html");
+            }
+            else{
+                strcpy(m_url, "/registerError.html");
+            }
+        }
+        // '2'是登录
         else{
-            strcpy(m_url, "/log.html");
+            // 判断数据是否存在
+            string sql_query = "SELECT * FROM user WHERE username='" + name + "' and password='" + password + "';";
+            int res = mysql_real_query(mysql, sql_query.c_str(), sql_query.size());
+            // 获取完整的结果集
+            MYSQL_RES *result = mysql_store_result(mysql);
+            //返回结果集中的列数
+            int num_fields = mysql_num_rows(result);
+            if(num_fields == 0){
+                strcpy(m_url, "/logError.html");
+            }
+            else{
+                strcpy(m_url, "/welcome.html");
+            }
         }
     }
     // '0'跳转注册界面

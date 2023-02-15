@@ -135,6 +135,8 @@ void threadpool< T >::run()
         request->mysql = m_connpool->get_connection();
         request->process();
         m_connpool->release_connection(request->mysql);
+        // 悬空指针赋值为NULL
+        request->mysql = NULL;
     }
 }
 
