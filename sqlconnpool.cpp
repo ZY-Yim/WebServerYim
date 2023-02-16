@@ -65,7 +65,7 @@ MYSQL* sqlconnpool::get_connection(){
 
 // 释放当前连接
 bool sqlconnpool::release_connection(MYSQL* conn){
-    cout << "release" << endl << endl;
+    // cout << "release" << endl;
     if(conn == NULL) return false;
     lock.lock();
     conn_list.push_back(conn);

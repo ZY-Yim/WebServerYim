@@ -81,6 +81,7 @@ void http_conn::init( int sockfd, const sockaddr_in& addr )
     socklen_t len = sizeof( error );
     getsockopt( m_sockfd, SOL_SOCKET, SO_ERROR, &error, &len );
     int reuse = 1;
+    // 端口复用
     setsockopt( m_sockfd, SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof( reuse ) );
     addfd( m_epollfd, sockfd, true );
     m_user_count++;
@@ -172,6 +173,10 @@ bool http_conn::read()
         bytes_read = recv( m_sockfd, m_read_buf + m_read_idx, READ_BUFFER_SIZE - m_read_idx, 0 );
         if ( bytes_read == -1 )
         {
+            // EPOLLIN事件则只有当对端有数据写入时才会触发，所以触发一次后需要不断读取所有数据直到读完EAGAIN为止。
+            // 否则剩下的数据只有在下次对端有写入时才能一起取出来了。
+            // 如果读完了,则break;不会返回false
+            // 否则是代表读失败
             if( errno == EAGAIN || errno == EWOULDBLOCK )
             {
                 break;
@@ -511,6 +516,7 @@ bool http_conn::write()
     int bytes_to_send = m_write_idx;
     if ( bytes_to_send == 0 )
     {
+        // 没有需要发送的数据,不关闭连接
         modfd( m_epollfd, m_sockfd, EPOLLIN );
         init();
         return true;
@@ -522,9 +528,12 @@ bool http_conn::write()
         if ( temp <= -1 )
         {
             // 如果tcp写缓冲没有空间,则等待下一轮EPOLLOUT事件
-            // 虽然在此期间,服务器没法接受到同一个客户的下一个请求,单可以保持连接的完整性
+            // 虽然在此期间,服务器没法接受到同一个客户的下一个请求,但可以保持连接的完整性
+            // 发送区写满,返回errno为EAGAIN,会触发EPOLLOUT
             if( errno == EAGAIN )
             {
+                // 同时会重置EPOLLONESHOT
+                // 重新注册EPOLLOUT事件,会触发EPOLLOUT事件
                 modfd( m_epollfd, m_sockfd, EPOLLOUT );
                 return true;
             }
@@ -538,15 +547,16 @@ bool http_conn::write()
         {
             // 发送http响应成功,根据http请求中的Connection字段决定是否立即关闭连接
             unmap();
+            modfd( m_epollfd, m_sockfd, EPOLLIN );
+
             if( m_linger )
             {
+                // 如果保持长连接,重新初始化,返回true,主线程不会关闭连接
                 init();
-                modfd( m_epollfd, m_sockfd, EPOLLIN );
                 return true;
             }
             else
             {
-                modfd( m_epollfd, m_sockfd, EPOLLIN );
                 return false;
             } 
         }
@@ -689,9 +699,13 @@ bool http_conn::process_write( HTTP_CODE ret )
 // 由线程池中的工作线程调用,处理http请求的入口函数
 void http_conn::process()
 {
+    // 主线程read()之后加入线程池，线程池中的某个线程process_read()之后得到read_ret
+    // 根据read_ret进行process_write()处理，然后注册EPOLLOUT可写
+    // 之后主线程获取事件进行write()
     HTTP_CODE read_ret = process_read();
     if ( read_ret == NO_REQUEST )
     {
+        // 没有获得请求方法,注册可读事件
         modfd( m_epollfd, m_sockfd, EPOLLIN );
         return;
     }
@@ -699,9 +713,10 @@ void http_conn::process()
     bool write_ret = process_write( read_ret );
     if ( ! write_ret )
     {
+        // 处理失败,关闭连接
         close_conn();
     }
-
+    // 处理完之后注册EPOLLOUT,主线程可写
     modfd( m_epollfd, m_sockfd, EPOLLOUT );
 }
 
