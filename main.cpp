@@ -239,6 +239,7 @@ int main( int argc, char* argv[] )
                             cout << "ALARM" << endl;
                             break;
                         case SIGTERM:
+                            // kill该进程
                             cout << "TERM" << endl;
                             stop_server = true;
                             break;
@@ -311,7 +312,8 @@ int main( int argc, char* argv[] )
     close(pipefd[1]);
     close(pipefd[0]);
     delete[] users;
+    delete[] users_timer;
     delete pool;
-    cout << "hello" << endl;
+    cout << "close done!" << endl;
     return 0;
 }

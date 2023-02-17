@@ -137,6 +137,7 @@ void threadpool< T >::run()
         m_connpool->release_connection(request->mysql);
         // 悬空指针赋值为NULL
         request->mysql = NULL;
+        cout << "release current threadpool" << endl;
     }
 }
 
