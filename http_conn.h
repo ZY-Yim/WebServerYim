@@ -105,6 +105,10 @@ private:
     int m_read_idx;
     // 当前正在分析的字符在读缓冲区中的位置
     int m_checked_idx;
+    // 需要发送的字节数
+    int bytes_to_send;
+    // 已经发送的字节数
+    int bytes_have_send;
     // 当前正在解析的行的起始位置
     int m_start_line;
     // 写缓冲区

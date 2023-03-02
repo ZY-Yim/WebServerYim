@@ -92,10 +92,10 @@ void http_conn::init( int sockfd, const sockaddr_in& addr )
 void http_conn::init()
 {
     mysql = NULL;
-    
+    bytes_to_send = 0;
+    bytes_have_send = 0;
     m_check_state = CHECK_STATE_REQUESTLINE;
     m_linger = false;
-
     m_method = GET;
     m_url = 0;
     m_version = 0;
@@ -509,12 +509,11 @@ void http_conn::unmap()
 }
 
 // 写http响应
+// 解决大文件传输问题
 bool http_conn::write()
 {
     int temp = 0;
-    int bytes_have_send = 0;
-    int bytes_to_send = m_write_idx;
-    if ( bytes_to_send == 0 )
+    if (bytes_to_send == 0)
     {
         // 没有需要发送的数据,不关闭连接
         modfd( m_epollfd, m_sockfd, EPOLLIN );
@@ -525,8 +524,7 @@ bool http_conn::write()
     while( 1 )
     {
         temp = writev( m_sockfd, m_iv, m_iv_count );
-        if ( temp <= -1 )
-        {
+        if(temp < 0){
             // 如果tcp写缓冲没有空间,则等待下一轮EPOLLOUT事件
             // 虽然在此期间,服务器没法接受到同一个客户的下一个请求,但可以保持连接的完整性
             // 发送区写满,返回errno为EAGAIN,会触发EPOLLOUT
@@ -541,9 +539,28 @@ bool http_conn::write()
             return false;
         }
 
-        bytes_to_send -= temp;
         bytes_have_send += temp;
-        if ( bytes_to_send <= bytes_have_send )
+        bytes_to_send -= temp;
+        /*
+        当请求小文件，也就是调用一次writev函数就可以将数据全部发送出去的时候，不会报错，
+        此时不会再次进入while循环。
+        一旦请求服务器文件较大文件时，需要多次调用writev函数，便会出现问题，
+        不是文件显示不全，就是无法显示。
+        1 如果报文消息报头较小，第一次就传输完毕，m_iv[0]内容全部被发送，需要更新m_iv[1].iov_base和iov_len，m_iv[0].iov_len置成0，
+        后续只传输文件内容，不用传输响应消息头
+        2 每次传输后都要更新下次传输的文件起始位置和长度
+        */
+        if(bytes_have_send >= m_iv[0].iov_len){
+            m_iv[0].iov_len = 0;
+            m_iv[1].iov_base = m_file_address + (bytes_have_send - m_write_idx);
+            m_iv[1].iov_len = bytes_to_send;
+        }
+        else{
+            m_iv[0].iov_base = m_write_buf + bytes_have_send;
+            m_iv[0].iov_len = m_iv[0].iov_len - bytes_have_send;
+        }
+
+        if(bytes_to_send <= 0)
         {
             // 发送http响应成功,根据http请求中的Connection字段决定是否立即关闭连接
             unmap();
@@ -562,6 +579,57 @@ bool http_conn::write()
         }
     }
 }
+
+// bool http_conn::write()
+// {
+//     int temp = 0;
+//     int bytes_have_send = 0;
+//     int bytes_to_send = m_write_idx;
+//     if ( bytes_to_send == 0 )
+//     {
+//         // 没有需要发送的数据,不关闭连接
+//         modfd( m_epollfd, m_sockfd, EPOLLIN );
+//         init();
+//         return true;
+//     }
+//     while( 1 )
+//     {
+//         temp = writev( m_sockfd, m_iv, m_iv_count );
+//         if ( temp <= -1 )
+//         {
+//             // 如果tcp写缓冲没有空间,则等待下一轮EPOLLOUT事件
+//             // 虽然在此期间,服务器没法接受到同一个客户的下一个请求,但可以保持连接的完整性
+//             // 发送区写满,返回errno为EAGAIN,会触发EPOLLOUT
+//             if( errno == EAGAIN )
+//             {
+//                 // 同时会重置EPOLLONESHOT
+//                 // 重新注册EPOLLOUT事件,会触发EPOLLOUT事件
+//                 modfd( m_epollfd, m_sockfd, EPOLLOUT );
+//                 return true;
+//             }
+//             unmap();
+//             return false;
+//         }
+//         bytes_to_send -= temp;
+//         bytes_have_send += temp;
+//         if ( bytes_to_send <= bytes_have_send )
+//         {
+//             // 发送http响应成功,根据http请求中的Connection字段决定是否立即关闭连接
+//             unmap();
+//             modfd( m_epollfd, m_sockfd, EPOLLIN );
+//             if( m_linger )
+//             {
+//                 // 如果保持长连接,重新初始化,返回true,主线程不会关闭连接
+//                 init();
+//                 return true;
+//             }
+//             else
+//             {
+//                 return false;
+//             } 
+//         }
+//     }
+// }
 
 // 往写缓冲中写入待发送的数据
 bool http_conn::add_response( const char* format, ... )
@@ -671,6 +739,7 @@ bool http_conn::process_write( HTTP_CODE ret )
                 m_iv[ 1 ].iov_base = m_file_address;
                 m_iv[ 1 ].iov_len = m_file_stat.st_size;
                 m_iv_count = 2;
+                bytes_to_send = m_write_idx +  m_file_stat.st_size;
                 return true;
             }
             else
@@ -693,6 +762,7 @@ bool http_conn::process_write( HTTP_CODE ret )
     m_iv[ 0 ].iov_base = m_write_buf;
     m_iv[ 0 ].iov_len = m_write_idx;
     m_iv_count = 1;
+    bytes_to_send = m_write_idx;
     return true;
 }
 
