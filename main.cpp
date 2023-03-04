@@ -67,7 +67,7 @@ void timer_hander(){
 
 // 回调函数,删除非活动连接在socket上的事件，并关闭
 void cb_func(client_data* user_data){
-    cout << "delete sockfd timer" << endl;
+    // cout << "delete sockfd timer" << endl;
     epoll_ctl(epollfd, EPOLL_CTL_DEL, user_data->sockfd, 0);
     assert(user_data);
     close(user_data->sockfd);
@@ -184,7 +184,7 @@ int main( int argc, char* argv[] )
             int sockfd = events[i].data.fd;
             if( sockfd == listenfd )
             {
-                cout << "new client" << endl;
+                // cout << "new client" << endl;
                 struct sockaddr_in client_address;
                 socklen_t client_addrlength = sizeof( client_address );
                 int connfd = accept( listenfd, ( struct sockaddr* )&client_address, &client_addrlength );
@@ -239,11 +239,11 @@ int main( int argc, char* argv[] )
                         case SIGALRM:
                             // 说明超时了，接下来要处理
                             timeout = true;
-                            cout << "ALARM" << endl;
+                            // cout << "ALARM" << endl;
                             break;
                         case SIGTERM:
                             // kill该进程
-                            cout << "TERM" << endl;
+                            // cout << "TERM" << endl;
                             stop_server = true;
                             break;
                         default:
@@ -317,6 +317,6 @@ int main( int argc, char* argv[] )
     delete[] users;
     delete[] users_timer;
     delete pool;
-    cout << "close done!" << endl;
+    // cout << "close done!" << endl;
     return 0;
 }

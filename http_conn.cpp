@@ -315,7 +315,7 @@ http_conn::HTTP_CODE http_conn::parse_headers( char* text )
     }
     else
     {
-        printf( "oop! unknow header %s\n", text );
+        // printf( "oop! unknow header %s\n", text );
     }
 
     return NO_REQUEST;
@@ -349,7 +349,7 @@ http_conn::HTTP_CODE http_conn::process_read()
     {
         text = get_line();
         m_start_line = m_checked_idx;       // 下一行真实位置
-        printf( "got 1 http line: %s\n", text );
+        // printf( "got 1 http line: %s\n", text );
 
         switch ( m_check_state )
         {
@@ -425,7 +425,7 @@ http_conn::HTTP_CODE http_conn::do_request()
             // 插入数据
             // 表必须设置了主键
             string sql_insert = "INSERT INTO user(username, password) VALUES('" + name + "', '" + password + "');";
-            cout << sql_insert << endl;
+            // cout << sql_insert << endl;
             m_lock.lock();
             int res = mysql_real_query(mysql, sql_insert.c_str(), sql_insert.size());
             m_lock.unlock();

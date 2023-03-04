@@ -59,7 +59,7 @@ threadpool< T >::threadpool( sqlconnpool* connpool, int thread_number, int max_r
     // create thread_number threads, 设置为脱离线程
     for ( int i = 0; i < thread_number; ++i )
     {
-        printf( "create the %dth thread\n", i );
+        // printf( "create the %dth thread\n", i );
         // 创建成功返回0
         if( pthread_create( m_threads + i, NULL, worker, this ) != 0 )
         {
@@ -131,13 +131,17 @@ void threadpool< T >::run()
             continue;
         }
         // 获取一条mysql连接，还需要释放，采用RAII机制
-        // sqlconnRAII mysqlconn(&request->mysql, m_connpool);
+        sqlconnRAII mysqlconn(&request->mysql, m_connpool);
+        request->process();
+        // 否则手动释放
+        /* 
         request->mysql = m_connpool->get_connection();
         request->process();
         m_connpool->release_connection(request->mysql);
         // 悬空指针赋值为NULL
-        request->mysql = NULL;
-        cout << "release current threadpool" << endl;
+        request->mysql = NULL; */
+
+        // cout << "release current threadpool" << endl;
     }
 }
 

@@ -125,7 +125,7 @@ public:
     // 处理链表上的到期任务
     void tick(){
         if(!head) return;
-        cout << "time tick" << endl;
+        // cout << "time tick" << endl;
         time_t cur_time = time(NULL);
         util_timer* tmp = head;
         while(tmp){
