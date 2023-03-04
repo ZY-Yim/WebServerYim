@@ -1,8 +1,5 @@
 #include "http_conn.h"
 
-// INSERT 操作时加锁
-locker m_lock;
-
 // 定义http响应的状态信息
 const char* ok_200_title = "OK";
 const char* error_400_title = "Bad Request";
@@ -14,25 +11,34 @@ const char* error_404_form = "The requested file was not found on this server.\n
 const char* error_500_title = "Internal Error";
 const char* error_500_form = "There was an unusual problem serving the requested file.\n";
 
+#define LT 0
+#define ET 1
+
+// INSERT 操作时加锁
+locker m_lock;
 // 网站根目录
 const char* doc_root = "/home/yim/WorkSpace/WebServerYim/resources";
 
 // 将文件描述符设置为非阻塞的
-int setnonblocking( int fd )
+int setnonblocking(int fd)
 {
-    int old_option = fcntl( fd, F_GETFL );
+    int old_option = fcntl(fd, F_GETFL);
     int new_option = old_option | O_NONBLOCK;
-    fcntl( fd, F_SETFL, new_option );
+    fcntl(fd, F_SETFL, new_option);
     return old_option;
 }
 
 //将内核事件表注册读事件，ET模式，选择开启EPOLLONESHOT
-void addfd( int epollfd, int fd, bool one_shot )
+void addfd(int epollfd, int fd, bool one_shot, bool Trigger)
 {
     epoll_event event;
     event.data.fd = fd;
     // 数据可读 | ET触发 | TCP连接被对方关闭，或者对方关闭了写操作
-    event.events = EPOLLIN | EPOLLET | EPOLLRDHUP;
+    // event.events = EPOLLIN | EPOLLET | EPOLLRDHUP;
+    event.events = EPOLLIN | EPOLLRDHUP;
+    if(Trigger == ET){
+        event.events |= EPOLLET;
+    }
     if( one_shot )
     {
         event.events |= EPOLLONESHOT;
@@ -42,10 +48,11 @@ void addfd( int epollfd, int fd, bool one_shot )
     setnonblocking( fd );
 }
 
-void removefd( int epollfd, int fd )
+// 从内核时间表删除描述符
+void removefd(int epollfd, int fd)
 {
-    epoll_ctl( epollfd, EPOLL_CTL_DEL, fd, 0 );
-    close( fd );
+    epoll_ctl(epollfd, EPOLL_CTL_DEL, fd, 0);
+    close(fd);
 }
 
 // 修改为EPOLLONESHOT
@@ -83,7 +90,7 @@ void http_conn::init( int sockfd, const sockaddr_in& addr )
     int reuse = 1;
     // 端口复用
     setsockopt( m_sockfd, SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof( reuse ) );
-    addfd( m_epollfd, sockfd, true );
+    addfd( m_epollfd, sockfd, true, ET );
     m_user_count++;
 
     init();

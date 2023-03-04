@@ -13,7 +13,6 @@
 #include "locker.h"
 #include "threadpool.h"
 #include "sqlconnpool.h"
-#include "sqlconnRAII.h"
 #include "http_conn.h"
 #include "lst_timer.h"
 
@@ -21,6 +20,10 @@
 #define MAX_EVENT_NUMBER 10000
 #define TIMESLOT 5             //最小超时单位
 
+#define LT 0
+#define ET 1
+
+void addfd(int epollfd, int fd, bool one_shot, bool Trigger);
 extern int addfd(int epollfd, int fd, bool one_shot);
 extern int removefd( int epollfd, int fd );
 extern int setnonblocking( int fd );
@@ -145,7 +148,7 @@ int main( int argc, char* argv[] )
     epollfd = epoll_create( 5 );
     assert( epollfd != -1 );
     // 监听socket注册到内核事件表
-    addfd( epollfd, listenfd, false );
+    addfd( epollfd, listenfd, false, LT );
     // 静态的，初始化
     http_conn::m_epollfd = epollfd;
 
@@ -154,7 +157,7 @@ int main( int argc, char* argv[] )
     assert(ret != -1);
     // 注册管道pipefd[0]上的可读事件
     setnonblocking(pipefd[1]);
-    addfd(epollfd, pipefd[0], false);
+    addfd(epollfd, pipefd[0], false, ET);
 
     // 设置信号处理函数
     // 忽略SIGPIPE信号
