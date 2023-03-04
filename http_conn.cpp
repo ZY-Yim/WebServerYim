@@ -17,7 +17,7 @@ const char* error_500_form = "There was an unusual problem serving the requested
 // INSERT 操作时加锁
 locker m_lock;
 // 网站根目录
-const char* doc_root = "/home/yim/WorkSpace/WebServerYim/resources";
+const char* doc_root = "/home/yim/WorkSpace/resources";
 
 // 将文件描述符设置为非阻塞的
 int setnonblocking(int fd)
